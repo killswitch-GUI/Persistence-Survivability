@@ -3187,6 +3187,11 @@ function Invoke-Ping {
 }
 function Get-DomainSearcher {
 <#
+    PowerSploit File: PowerView.ps1
+    Author: Will Schroeder (@harmj0y)
+    License: BSD 3-Clause
+    Required Dependencies: None
+    Optional Dependencies: None
     .SYNOPSIS
         Helper used by various functions that takes an ADSpath and
         domain specifier and builds the correct ADSI searcher object.
@@ -3277,6 +3282,12 @@ function Get-DomainSearcher {
 }
 function Get-NetComputer {
 <#
+    PowerSploit File: PowerView.ps1
+    Author: Will Schroeder (@harmj0y)
+    License: BSD 3-Clause
+    Required Dependencies: None
+    Optional Dependencies: None
+    
     .SYNOPSIS
         This function utilizes adsisearcher to query the current AD context
         for current computer objects. Based off of Carlos Perez's Audit.psm1
