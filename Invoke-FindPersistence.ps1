@@ -468,8 +468,8 @@ function Get-WmiRamSize{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName -credential $Credential
-                $Capacity = $Wmi.Capacity
+                $Capacity = 0
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName -credential $Credential | %{$Capacity = $_.Capacity / 1GB + $Capacity}
                 return $Capacity
             }
             catch 
@@ -484,8 +484,8 @@ function Get-WmiRamSize{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName -credential $Credential
-                $Capacity = $Wmi.Capacity
+                $Capacity = 0
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName -credential $Credential | %{$Capacity = $_.Capacity / 1GB + $Capacity}
                 return $Capacity
             }
             catch 
@@ -497,9 +497,9 @@ function Get-WmiRamSize{
         {
             try
             {
+                $Capacity = 0
                 # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName
-                $Capacity = $Wmi.Capacity
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_PhysicalMemory -computername $HostName | %{$Capacity = $_.Capacity / 1GB + $Capacity}
                 return $Capacity
             }
             catch 
@@ -1828,6 +1828,79 @@ function Calc-WmiDisk{
         }
     }
 }
+function Calc-WmiRamSize{
+<#
+    .SYNOPSIS
+    
+
+    .PARAMETER LProc 
+    Pass a GB Ram size and calculate the value.
+
+    .EXAMPLE
+    > 
+    NONE
+
+    .LINK
+    NONE
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline=$True)]
+        $Ram
+    )
+    Process
+    {
+        # caculate the value of Logical Proc.
+        if($Ram)
+        {
+            # Enter the main loop
+            switch ($Ram)
+            {
+                {$_ -lt 1}
+                {
+                    $Value = .20
+                    break
+                }
+                {$_ -lt 2}
+                {
+                    $Value = .30
+                    break
+                }
+                {$_ -lt 3}
+                {
+                    $Value = .50
+                    break
+                }
+                {$_ -lt 4}
+                {
+                    $Value = .70
+                    break
+                }
+                {$_ -lt 6}
+                {
+                    $Value = .80
+                }
+                {$_ -lt 8}
+                {
+                    $Value = .90
+                }
+                {$_ -gt 8}
+                {
+                    $Value = 1.00
+                }
+                default{$Value = .30}
+             }
+             return $Value
+        }
+        else
+        {
+            # Return a zero value
+            $Value = 0.0
+            return $Value
+        }
+    }
+}
 function Calc-WmiServer{
 <#
     .SYNOPSIS
@@ -2134,7 +2207,7 @@ function Calc-WeightedAverage{
             }
             catch{
             Write-Verbose "[!] Failed to get weighted average."
-            return 0
+            return 0.0
             } 
         } # end of if
     } # end of process
@@ -2352,7 +2425,7 @@ function Invoke-FindPersitence{
                         $VArch = Calc-WmiArch -Arch $Arch
                         $VServer = Calc-WmiServer -Type $Server
                         $VSystemEncl = Calc-WmiSystemEnclosure -Code $SystemEncl
-                        # $VRamSize = Calc-WmiRamSize
+                        $VRamSize = Calc-WmiRamSize -Ram $RamSize
                         $VDiskSpace = Calc-WmiDisk -Disk $DiskSize 
                         $VProcSpeed = Calc-WmiProcSpeed -Speed $ProcSpeed
                         $VLProcCount = Calc-WmiLProcCount -LProc $LProcCount
@@ -2369,14 +2442,14 @@ function Invoke-FindPersitence{
                         $WArch = Calc-WeightedAverage -Percent $VArch -Weight $WeightedValue.OSArch
                         $WServer = Calc-WeightedAverage -Percent $VServer -Weight $WeightedValue.ServerType
                         $WSystemEncl = Calc-WeightedAverage -Percent $VSystemEncl -Weight $WeightedValue.SystemEnclosure
-                        # Ram
+                        $WRamSize = Calc-WeightedAverage -Percent $RamSize -Weight $WeightedValue.RamSize
                         $WDiskSpace = Calc-WeightedAverage -Percent $VDiskSpace -Weight $WeightedValue.DiskSize
                         $WProcSpeed = Calc-WeightedAverage -Percent $VProcSpeed -Weight $WeightedValue.ProcessorSpeed
                         $WLProcCount = Calc-WeightedAverage -Percent $VLProcCount -Weight $WeightedValue.ProcessorLogicalCores
                         # Cores
                         $WProcCount = Calc-WeightedAverage -Percent $VProcCount -Weight $WeightedValue.ProcessCount
                         # calc the PersistenceSurvivability rating
-                        [float]$PersistenceSurvivability = $WLastBoot + $WInstallDate + $WArch + $WServer + $WSystemEncl + $WDiskSpace + $WProcSpeed + $WLProcCount
+                        [float]$PersistenceSurvivability = $WLastBoot + $WInstallDate + $WArch + $WServer + $WSystemEncl + $WDiskSpace + $WProcSpeed + $WLProcCount + $WRamSize
                     }
                     catch{
                         Write-Verbose "[!] Failed to build weighted Averages"
@@ -2414,6 +2487,7 @@ function Invoke-FindPersitence{
                         $ComputerObject | Add-Member NoteProperty 'SystemEnclosureV' $VSystemEncl
                         #$ComputerObject | Add-Member NoteProperty 'LastBootValue' $VRamSize
                         $ComputerObject | Add-Member NoteProperty 'DiskSizeV' $VDiskSpace
+                        $ComputerObject | Add-Member NoteProperty 'RamSizeV' $VRamSize
                         $ComputerObject | Add-Member NoteProperty 'ProcessorSpeedV' $VProcSpeed
                         $ComputerObject | Add-Member NoteProperty 'ProcessorLogicalCoreV' $VLProcCount
                         #$ComputerObject | Add-Member NoteProperty 'ProcessorCoresV' $VProcCores
@@ -2425,6 +2499,7 @@ function Invoke-FindPersitence{
                         $ComputerObject | Add-Member NoteProperty 'ServerTypeWV' $WServer
                         $ComputerObject | Add-Member NoteProperty 'SystemEnclosureWV' $WSystemEncl
                         $ComputerObject | Add-Member NoteProperty 'DiskSizeWV' $WDiskSpace
+                        $ComputerObject | Add-Member NoteProperty 'RamSizeWV' $WRamSize
                         $ComputerObject | Add-Member NoteProperty 'ProcessorSpeedWV' $WProcSpeed
                         $ComputerObject | Add-Member NoteProperty 'ProcessorLogicalCoreWV' $WLProcCount
                         $ComputerObject | Add-Member NoteProperty 'ProcessCountWV' $WProcCount
@@ -2495,6 +2570,7 @@ function Invoke-FindPersitence{
                     }
                     $PSMean = $PSTotal / $ArrayLen 
                     $PSMean = "{0:P0}" -f $PSMean
+
 
 
                     # print final data stats:
