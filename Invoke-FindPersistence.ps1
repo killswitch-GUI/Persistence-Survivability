@@ -2592,13 +2592,15 @@ function Invoke-FindPersitence{
                 }
                 # now build the stat data
                 if($PersistenceObjects){
+                    $ArrayLen = $PersistenceObjects.count
                     $PSTotal = 0
                     $PersistenceObjects | ForEach-Object{
                         $PSTotal += $_.PersistenceSurvivability
                     }
                     $PSMean = $PSTotal / $ArrayLen 
-                    $PSMean = "{0:P0}" -f $PSMean
-                    # now calculate the standard deviation
+                    $PSMeanPercent = "{0:P0}" -f $PSMean
+                    # now calculate the 
+                    standard deviation
                     $ValueofSepration = 0
                     $PersistenceObjects | ForEach-Object{
                         # get the current value in float
@@ -2610,7 +2612,7 @@ function Invoke-FindPersitence{
                     }
                     # now we will calculate the Variance
                     # also account for sample data if needed
-                    $Variance = $ValueofSepration / $PersistenceObjects.count 
+                    $Variance = $ValueofSepration / $ArrayLen
                     $Variance =[Math]::SQRT($Variance)
                     # now build the stat object
                     $StatObject = New-Object PSObject
@@ -2618,7 +2620,7 @@ function Invoke-FindPersitence{
                     $StatObject | Add-Member NoteProperty 'VMwareLen' $VMwareObjects.count
                     $StatObject | Add-Member NoteProperty 'DesktopLen' $DesktopObjects.count
                     $StatObject | Add-Member NoteProperty 'ServerLen' $ServerObjects.count
-                    $StatObject | Add-Member NoteProperty 'PSMean' $PSMean
+                    $StatObject | Add-Member NoteProperty 'PSMean' $PSMeanPercent
                     $StatObject | Add-Member NoteProperty 'Variance' $Variance
 
                     # print final data stats:
