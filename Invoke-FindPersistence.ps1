@@ -2592,26 +2592,43 @@ function Invoke-FindPersitence{
                 }
                 # now build the stat data
                 if($PersistenceObjects){
-                    $ArrayLen = $PersistenceObjects.count
-                    $VMwareLen = $VMwareObjects.count
-                    $DesktopLen = $DesktopObjects.count
-                    $ServerLen = $ServerObjects.count
                     $PSTotal = 0
                     $PersistenceObjects | ForEach-Object{
                         $PSTotal += $_.PersistenceSurvivability
                     }
                     $PSMean = $PSTotal / $ArrayLen 
                     $PSMean = "{0:P0}" -f $PSMean
-
-
+                    # now calculate the standard deviation
+                    $ValueofSepration = 0
+                    $PersistenceObjects | ForEach-Object{
+                        # get the current value in float
+                        $PSValue = $_.PersistenceSurvivability
+                        # Sub the float values by the mean
+                        $DiffrenceFromMean = $PSValue - $PSMean
+                        # now square root the value
+                        $ValueofSepration += [Math]::Pow($DiffrenceFromMean, 2)
+                    }
+                    # now we will calculate the Variance
+                    # also account for sample data if needed
+                    $Variance = $ValueofSepration / $PersistenceObjects.count 
+                    $Variance =[Math]::SQRT($Variance)
+                    # now build the stat object
+                    $StatObject = New-Object PSObject
+                    $StatObject | Add-Member NoteProperty 'ArrayLen' $PersistenceObjects.count
+                    $StatObject | Add-Member NoteProperty 'VMwareLen' $VMwareObjects.count
+                    $StatObject | Add-Member NoteProperty 'DesktopLen' $DesktopObjects.count
+                    $StatObject | Add-Member NoteProperty 'ServerLen' $ServerObjects.count
+                    $StatObject | Add-Member NoteProperty 'PSMean' $PSMean
+                    $StatObject | Add-Member NoteProperty 'Variance' $Variance
 
                     # print final data stats:
                     Write-Host "[*] Overall Persistence Survivability stats: "
-                    Write-Host "    Total number of hosts: " $ArrayLen
-                    Write-Host "    Total VMware hosts: " $VMwareLen
-                    Write-Host "    Total Desktop hosts: " $DesktopLen
-                    Write-Host "    Total Server hosts: " $ServerLen
-                    Write-Host "    Survivability mean: " $PSMean
+                    Write-Host "    Total number of hosts: " $StatObject.ArrayLen
+                    Write-Host "    Total VMware hosts: " $StatObject.VMwareLen
+                    Write-Host "    Total Desktop hosts: " $StatObject.DesktopLen
+                    Write-Host "    Total Server hosts: " $StatObject.ServerLen
+                    Write-Host "    Survivability mean: " $StatObject.PSMean
+                    Write-Host "    Standard Deviation Value: " $StatObject.Variance
                         
                 } # end if print 
             } # end of if return objects
@@ -3187,11 +3204,6 @@ function Invoke-Ping {
 }
 function Get-DomainSearcher {
 <#
-    PowerSploit File: PowerView.ps1
-    Author: Will Schroeder (@harmj0y)
-    License: BSD 3-Clause
-    Required Dependencies: None
-    Optional Dependencies: None
     .SYNOPSIS
         Helper used by various functions that takes an ADSpath and
         domain specifier and builds the correct ADSI searcher object.
@@ -3282,12 +3294,6 @@ function Get-DomainSearcher {
 }
 function Get-NetComputer {
 <#
-    PowerSploit File: PowerView.ps1
-    Author: Will Schroeder (@harmj0y)
-    License: BSD 3-Clause
-    Required Dependencies: None
-    Optional Dependencies: None
-    
     .SYNOPSIS
         This function utilizes adsisearcher to query the current AD context
         for current computer objects. Based off of Carlos Perez's Audit.psm1
