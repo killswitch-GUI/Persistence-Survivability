@@ -1416,6 +1416,9 @@ function Get-WmiPortableOS{
     .PARAMETER Credential 
     Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
 
+    .PARAMETER WmiOS
+    Pass the OS Wmi on the CLI to enhance speed / remote calls.
+
     .PARAMETER Targets
     Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
 
@@ -1438,7 +1441,10 @@ function Get-WmiPortableOS{
         [string]$Password,
 
         [Parameter(ValueFromPipeline=$True)]
-        [string]$HostName
+        [string]$HostName,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $WmiOS
     )
 
     Process 
@@ -1453,9 +1459,15 @@ function Get-WmiPortableOS{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $PortableOS = $Wmi.PortableOperatingSystem
-                return $PortableOS
+                if ($WmiOS){
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credentiall
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
             }
             catch 
             {
@@ -1469,9 +1481,15 @@ function Get-WmiPortableOS{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $PortableOS = $Wmi.PortableOperatingSystem
-                return $PortableOS
+                if ($WmiOS){
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
             }
             catch 
             {
@@ -1483,9 +1501,15 @@ function Get-WmiPortableOS{
             try
             {
                 # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
-                $PortableOS = $Wmi.PortableOperatingSystem
-                return $PortableOS
+                if ($WmiOS){
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
+                    $PortableOS = $Wmi.PortableOperatingSystem
+                    return $PortableOS
+                }
             }
             catch 
             {
@@ -2508,10 +2532,10 @@ function Invoke-FindPersitence{
     Don't ping each host to ensure it's up before enumerating.
 
     .PARAMETER Delay
-     Delay between enumerating hosts, defaults to 0
+     Delay between enumerating hosts, defaults to 0 milliseconds.
 
     .PARAMETER Jitter
-    Jitter for the host delay, defaults to +/- 0.3
+    Jitter for the host delay, defaults to +/- 0-100 milliseconds
 
     .PARAMETER HostList
     Provid a hostlist one the CLI.
@@ -2568,6 +2592,12 @@ function Invoke-FindPersitence{
 
         [Parameter(ValueFromPipeline=$True)]
         [Int]$Top = 3,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [Int]$Delay = 0,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [Int]$Jitter = 100,
 
         [Parameter(ValueFromPipeline=$True)]
         [Int]$MaxHosts,
@@ -2635,6 +2665,16 @@ function Invoke-FindPersitence{
                         }
                         $Counter += 1
                     }
+                    if($Delay){
+                    # create sleep for jitter /delay time
+                        $JitterValue = Get-Random -Minimum 0 -Maximum $Jitter
+                        # for Postive / Negative Jitter count
+                        $RandMulti = Get-Random -input -1,1
+                        $SleepJitter = $JitterValue * $RandMulti
+                        # calculate the sleep time by adding pot negative #
+                        $SleepTime = $Delay + $SleepJitter
+                        Start-Sleep -Milliseconds $SleepTime
+                    }
                     # setup meta calls for repeated Wmi calls to reduce call traffic
                     $WmiOS = Get-WmiOS -User $User -Password $Password -Credential $Credential -HostName $_
                     # Obtain required values for calculation
@@ -2651,7 +2691,7 @@ function Invoke-FindPersitence{
                         $ProcCores = Get-WmiProcessorCores -User $User -Password $Password -Credential $Credential -HostName $_
                         $ProcCount = Get-WmiProcessCount -User $User -Password $Password -Credential $Credential -HostName $_
                         # Obtain required boolean values 
-                        $PortOS = Get-WmiPortableOS -User $User -Password $Password -Credential $Credential -HostName $_
+                        $PortOS = Get-WmiPortableOS -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
                         $VMware = Get-WmiVMChecks -User $User -Password $Password -Credential $Credential -HostName $_
                     }
                     catch{
@@ -2848,9 +2888,6 @@ function Invoke-FindPersitence{
     }
     
 }
-
-
-
 
 #########################
 #                       #
@@ -3399,7 +3436,7 @@ function Invoke-Ping {
             {
                 #Pick out a few properties, add a status label.  If quiet output, just return the address
                 $result = $null
-                if( $result = @( Test-Connection -ComputerName $computer -Count 2 -erroraction Stop ) )
+                if( $result = @( Test-Connection -ComputerName $computer -Count 1 -erroraction Stop ) )
                 {
                     $Output = $result | Select -first 1 -Property Address, IPV4Address, IPV6Address, ResponseTime, @{ label = "STATUS"; expression = {"Responding"} }
                     $Output.address
