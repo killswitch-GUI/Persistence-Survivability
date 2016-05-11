@@ -109,6 +109,100 @@ Bool Values for sorting
 24) WmiVMChecks
 25) WmiLogging
 #>
+
+######################
+# PS Wmi Object Calls#
+######################
+function Get-WmiOS{
+    <#
+    .SYNOPSIS
+    This function will query the target for its OS wmi object and return this object.
+
+    .PARAMETER Credential 
+    Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
+
+    .PARAMETER UserName
+    DOMAIN\UserName to pass to CLI.
+
+    .PARAMETER Password
+    String Password to pass to CLI.
+
+    .PARAMETER Targets
+    Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
+
+    .EXAMPLE
+    > Get-WmiBootTime
+    NONE
+
+    .LINK
+    NONE
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline=$True)]
+        $Credential,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$User,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$Password,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$HostName
+    )
+
+    Process 
+    {
+        if( -Not $HostName)
+        {
+            $HostName = $env:computername
+        }
+
+        if ($Credential)
+        {
+            # execute with cred object
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                return $Wmi
+            }
+            catch 
+            {
+                Write-Warning "[!] Error opening Wmi OS on $HostName."
+            }
+        }
+        elseif ($User -and $Password)
+        {
+            # execute with built credential object
+            $Password = ConvertTo-SecureString $Password -AsPlainText -Force
+	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                return $Wmi
+            }
+            catch 
+            {
+                Write-Warning "[!] Error opening Wmi OS on $HostName."
+            }
+        }
+        else
+        {
+            try
+            {
+                # execute in current user context
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
+                return $Wmi
+            }
+            catch 
+            {
+                Write-Warning "[!] Error opening Wmi OS on $HostName."
+            }
+
+        } 
+    }
+}
 ####################
 # Weighted Average #
 ####################
@@ -130,6 +224,8 @@ function Get-WmiBootTime{
     .PARAMETER Password
     String Password to pass to CLI.
 
+    .PARAMETER WmiOS
+    Pass the OS Wmi on the CLI to enhance speed / remote calls.
 
     .PARAMETER Targets
     Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
@@ -153,7 +249,10 @@ function Get-WmiBootTime{
         [string]$Password,
 
         [Parameter(ValueFromPipeline=$True)]
-        [string]$HostName
+        [string]$HostName,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $WmiOS
     )
 
     Process 
@@ -168,8 +267,13 @@ function Get-WmiBootTime{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $LastBoot = $Wmi.LastBootUpTime
+                if ($WmiOS){
+                    $LastBoot = $WmiOS.LastBootUpTime
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $LastBoot = $Wmi.LastBootUpTime
+                }
                 return $LastBoot
             }
             catch 
@@ -184,8 +288,13 @@ function Get-WmiBootTime{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $LastBoot = $Wmi.LastBootUpTime
+                if ($WmiOS){
+                    $LastBoot = $WmiOS.LastBootUpTime
+                }
+                else{
+                     $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $LastBoot = $Wmi.LastBootUpTime
+                }
                 return $LastBoot
             }
             catch 
@@ -197,9 +306,14 @@ function Get-WmiBootTime{
         {
             try
             {
-                # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
-                $LastBoot = $Wmi.LastBootUpTime
+                # execute in current user context             
+                if ($WmiOS){
+                    $LastBoot = $WmiOS.LastBootUpTime
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName   
+                    $LastBoot = $Wmi.LastBootUpTime
+                }
                 return $LastBoot
             }
             catch 
@@ -221,6 +335,9 @@ function Get-WmiInstallDate{
     .PARAMETER Credential 
     Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
 
+    .PARAMETER WmiOS
+    Pass the OS Wmi on the CLI to enhance speed / remote calls.
+
     .PARAMETER Targets
     Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
 
@@ -243,7 +360,10 @@ function Get-WmiInstallDate{
         [string]$Password,
 
         [Parameter(ValueFromPipeline=$True)]
-        [string]$HostName
+        [string]$HostName,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $WmiOS
     )
 
     Process 
@@ -258,8 +378,13 @@ function Get-WmiInstallDate{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $InstallDate = $Wmi.InstallDate
+                if ($WmiOS){
+                    $InstallDate = $WmiOS.InstallDate
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $InstallDate = $Wmi.InstallDate
+                }
                 return $InstallDate
             }
             catch 
@@ -274,8 +399,13 @@ function Get-WmiInstallDate{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $InstallDate = $Wmi.InstallDate
+                if ($WmiOS){
+                    $InstallDate = $WmiOS.InstallDate
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $InstallDate = $Wmi.InstallDate
+                }
                 return $InstallDate
             }
             catch 
@@ -288,8 +418,13 @@ function Get-WmiInstallDate{
             try
             {
                 # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
-                $InstallDate = $Wmi.InstallDate
+                if ($WmiOS){
+                    $InstallDate = $WmiOS.InstallDate
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
+                    $InstallDate = $Wmi.InstallDate
+                }
                 return $InstallDate
             }
             catch 
@@ -360,6 +495,8 @@ function Get-WmiServer{
     .PARAMETER Password
     String Password to pass to CLI.
 
+    .PARAMETER WmiOS
+    Pass the OS Wmi on the CLI to enhance speed / remote calls.
 
     .PARAMETER Targets
     Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
@@ -383,7 +520,10 @@ function Get-WmiServer{
         [string]$Password,
 
         [Parameter(ValueFromPipeline=$True)]
-        [string]$HostName
+        [string]$HostName,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $WmiOS
     )
 
     Process 
@@ -398,8 +538,13 @@ function Get-WmiServer{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $ProductType = $Wmi.ProductType
+                if ($WmiOS){
+                    $ProductType = $WmiOS.ProductType
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $ProductType = $Wmi.ProductType
+                }
                 return $ProductType
             }
             catch 
@@ -418,8 +563,13 @@ function Get-WmiServer{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $ProductType = $Wmi.ProductType
+                if ($WmiOS){
+                    $ProductType = $WmiOS.ProductType
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $ProductType = $Wmi.ProductType
+                }
                 return $ProductType
             }
             catch 
@@ -432,8 +582,13 @@ function Get-WmiServer{
             try
             {
                 # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
-                $ProductType = $Wmi.ProductType
+                if ($WmiOS){
+                    $ProductType = $WmiOS.ProductType
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
+                    $ProductType = $Wmi.ProductType
+                }
                 return $ProductType
             }
             catch 
@@ -556,6 +711,9 @@ function Get-WmiArch{
     .PARAMETER Password
     String Password to pass to CLI.
 
+    .PARAMETER WmiOS
+    Pass the OS Wmi obj on the CLI to enhance speed / remote calls.
+
     .PARAMETER Credential 
     Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
 
@@ -581,7 +739,11 @@ function Get-WmiArch{
         [string]$Password,
 
         [Parameter(ValueFromPipeline=$True)]
-        [string]$HostName
+        [string]$HostName,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $WmiOS
+
     )
 
     Process 
@@ -596,8 +758,13 @@ function Get-WmiArch{
             # execute with cred object
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $OSArchitecture = $Wmi.OSArchitecture
+                if ($WmiOS){
+                    $OSArchitecture = $WmiOS.OSArchitecture
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $OSArchitecture = $Wmi.OSArchitecture
+                }
                 return $OSArchitecture
             }
             catch 
@@ -612,8 +779,13 @@ function Get-WmiArch{
 	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
             try
             {
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
-                $OSArchitecture = $Wmi.OSArchitecture
+                if ($WmiOS){
+                    $OSArchitecture = $WmiOS.OSArchitecture
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName -credential $Credential
+                    $OSArchitecture = $Wmi.OSArchitecture
+                }
                 return $OSArchitecture
             }
             catch 
@@ -626,8 +798,13 @@ function Get-WmiArch{
             try
             {
                 # execute in current user context
-                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
-                $OSArchitecture = $Wmi.OSArchitecture
+                if ($WmiOS){
+                    $OSArchitecture = $WmiOS.OSArchitecture
+                }
+                else{
+                    $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_OperatingSystem -computername $HostName
+                    $OSArchitecture = $Wmi.OSArchitecture
+                }
                 return $OSArchitecture
             }
             catch 
@@ -2244,7 +2421,35 @@ function Calc-WeightedAverage{
         } # end of if
     } # end of process
 }
-function Calc-StandardDeviation{}
+function Calc-StandardDeviation{
+
+    Process{
+                    $ArrayLen = $PersistenceObjects.count
+                    $PSTotal = 0
+                    $PersistenceObjects | ForEach-Object{
+                        $PSTotal += $_.PersistenceSurvivability
+                    }
+                    $PSMean = $PSTotal / $ArrayLen 
+                    $PSMeanPercent = "{0:P0}" -f $PSMean
+                    # now calculate the 
+                    standard deviation
+                    $ValueofSepration = 0
+                    $PersistenceObjects | ForEach-Object{
+                        # get the current value in float
+                        $PSValue = $_.PersistenceSurvivability
+                        # Sub the float values by the mean
+                        $DiffrenceFromMean = $PSValue - $PSMean
+                        # now square root the value
+                        $ValueofSepration += [Math]::Pow($DiffrenceFromMean, 2)
+                    }
+                    # now we will calculate the Variance
+                    # also account for sample data if needed
+                    $Variance = $ValueofSepration / $ArrayLen
+                    $Variance =[Math]::SQRT($Variance)
+
+
+    }
+}
 function Weighted-Values{
     <#
     .SYNOPSIS
@@ -2430,12 +2635,14 @@ function Invoke-FindPersitence{
                         }
                         $Counter += 1
                     }
+                    # setup meta calls for repeated Wmi calls to reduce call traffic
+                    $WmiOS = Get-WmiOS -User $User -Password $Password -Credential $Credential -HostName $_
                     # Obtain required values for calculation
                     try{
-                        $LastBoot = Get-WmiBootTime -User $User -Password $Password -Credential $Credential -HostName $_
-                        $InstallDate = Get-WmiInstallDate -User $User -Password $Password -Credential $Credential -HostName $_
-                        $Arch = Get-WmiArch -User $User -Password $Password -Credential $Credential -HostName $_
-                        $Server = Get-WmiServer -User $User -Password $Password -Credential $Credential -HostName $_
+                        $LastBoot = Get-WmiBootTime -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
+                        $InstallDate = Get-WmiInstallDate -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
+                        $Arch = Get-WmiArch -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
+                        $Server = Get-WmiServer -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
                         $SystemEncl = Get-WmiSystemEnclosure -User $User -Password $Password -Credential $Credential -HostName $_
                         $RamSize = Get-WmiRamSize -User $User -Password $Password -Credential $Credential -HostName $_
                         $DiskSize = Get-WMiDisk -User $User -Password $Password -Credential $Credential -HostName $_
@@ -2600,7 +2807,7 @@ function Invoke-FindPersitence{
                     $PSMean = $PSTotal / $ArrayLen 
                     $PSMeanPercent = "{0:P0}" -f $PSMean
                     # now calculate the 
-                    standard deviation
+                    # standard deviation
                     $ValueofSepration = 0
                     $PersistenceObjects | ForEach-Object{
                         # get the current value in float
