@@ -1,4 +1,4 @@
-﻿#requires -version 2
+#requires -version 2
 
 <#
     File: Invoke-FindPersistence.ps1
@@ -31,6 +31,15 @@
     CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
     ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
     POSSIBILITY OF SUCH DAMAGE.
+#>
+
+<#
+    PowerSploit File: PowerView.ps1
+    Functions Used:  Get-NetComputer, Convert-LDAPProperty, Get-NetDomain 
+    Author: Will Schroeder (@harmj0y)
+    License: BSD 3-Clause
+    Required Dependencies: None
+    Optional Dependencies: None
 #>
 
 <#
