@@ -1,4 +1,4 @@
-# Persisrence Survivability Rating
+# Persistence Survivability Rating
 
 ## Parameter Syntax: 
 
