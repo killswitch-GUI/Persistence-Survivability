@@ -2127,7 +2127,7 @@ function Calc-WmiRamSize{
                 {
                     $Value = .90
                 }
-                {$_ -gt 8}
+                {$_ -gt 20}
                 {
                     $Value = 1.00
                 }
@@ -2667,9 +2667,15 @@ function Invoke-FindPersitence{
                 $PersistenceObjects = @()
                 # start main
                 $Counter = 1
-                $Computers | Invoke-Ping | ForEach-Object {
+                if($MaxHosts){
+                    # Should we ping all boxes first and supply the right number of hosts
+                    # or just feed x hosts?
+                    $Computers = $Computers | Select-Object -first $MaxHosts
+                }
+                $Computers | Invoke-Ping -Timeout 5 | ForEach-Object {
                     if($MaxHosts){
                         if($Counter -gt $MaxHosts){
+                            write-host "[!] Reached Max Host Lookup!: "
                             break
                         }
                         $Counter += 1
@@ -2730,7 +2736,7 @@ function Invoke-FindPersitence{
                         $WArch = Calc-WeightedAverage -Percent $VArch -Weight $WeightedValue.OSArch
                         $WServer = Calc-WeightedAverage -Percent $VServer -Weight $WeightedValue.ServerType
                         $WSystemEncl = Calc-WeightedAverage -Percent $VSystemEncl -Weight $WeightedValue.SystemEnclosure
-                        $WRamSize = Calc-WeightedAverage -Percent $RamSize -Weight $WeightedValue.RamSize
+                        $WRamSize = Calc-WeightedAverage -Percent $VRamSize -Weight $WeightedValue.RamSize
                         $WDiskSpace = Calc-WeightedAverage -Percent $VDiskSpace -Weight $WeightedValue.DiskSize
                         $WProcSpeed = Calc-WeightedAverage -Percent $VProcSpeed -Weight $WeightedValue.ProcessorSpeed
                         $WLProcCount = Calc-WeightedAverage -Percent $VLProcCount -Weight $WeightedValue.ProcessorLogicalCores
@@ -2796,7 +2802,9 @@ function Invoke-FindPersitence{
 
 
                         # print / return value
-                        $PersistenceObjects += $ComputerObject
+                        if ($ComputerObject){
+                            $PersistenceObjects += $ComputerObject
+                        }
                         if ($RawOutput){
                             $ComputerObject
                         }
@@ -2828,20 +2836,24 @@ function Invoke-FindPersitence{
                 # now sort the objects by persistence rating
                 try{
                     Write-Host "[*] Top Server locations based on Persistence Survivability rating: "
-                    Sort-Object -Descending -Property PersistenceSurvivability -InputObject $ServerObjects | select -First $Top
+                    $SortedObjectsServer = Sort-Object -Descending -Property PersistenceSurvivability -InputObject $ServerObjects 
+                    $SortedObjectsServer | Select-Object -first $Top
                 }
                 catch{
+                    Write-Verbose "[!] Failed to print the top results (Server Objects)"
                 }
                 try{
                     Write-Host "[*] Top Desktop locations based on Persistence Survivability rating: "
-                    Sort-Object -Descending -Property PersistenceSurvivability -InputObject $DesktopObjects | select -First $Top
+                    $SortedObjectsDesktop = Sort-Object -Descending -Property PersistenceSurvivability -InputObject $DesktopObjects 
+                    $SortedObjectsDesktop | Select-Object -first $Top
                 }
                 catch{
                     Write-Verbose "[!] Failed to sort Desktop objects"
                 }
                 try{
                     Write-Host "[*] Top VM locations based on Persistence Survivability rating: "
-                    Sort-Object -Descending -Property PersistenceSurvivability -InputObject $VMwareObjects | select -First $Top
+                    $SortedObjectsVM = Sort-Object -Descending -Property PersistenceSurvivability -InputObject $VMwareObjects 
+                    $SortedObjectsVM | Select-Object -first $Top
                 }
                 catch{
                     Write-Verbose "[!] Failed to sort VMware objects"
