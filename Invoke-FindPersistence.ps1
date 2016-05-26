@@ -3733,13 +3733,6 @@ function Invoke-Ping {
                     $Output = $result | Select -first 1 -Property Address, IPV4Address, IPV6Address, ResponseTime, @{ label = "STATUS"; expression = {"Responding"} }
                     $Output.address
                 }
-                if( $result = @( Test- -ComputerName $computer ) )
-                {
-                    Write-Host "HERE2"
-                    $Output = $result | Select -first 1 -Property Address, IPV4Address, IPV6Address, ResponseTime, @{ label = "STATUS"; expression = {"Responding"} }
-                    return $TRUE
-                    $Output.address
-                }
             }
             Catch
             {
