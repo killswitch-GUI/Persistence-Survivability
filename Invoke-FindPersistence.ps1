@@ -611,7 +611,7 @@ function Get-WmiServer{
 function Get-WmiRamSize{
     <#
     .SYNOPSIS
-    Total capacity of the physical memory—in bytes.
+    Total capacity of the physical memoryâ€”in bytes.
 
     .DESCRIPTION
     This value comes from the Memory Device structure in the SMBIOS version information. 
@@ -2603,6 +2603,9 @@ function Invoke-FindPersitence{
         [Int]$Top = 3,
 
         [Parameter(ValueFromPipeline=$True)]
+        [Int]$TimeOut = 5,
+
+        [Parameter(ValueFromPipeline=$True)]
         [Int]$Delay = 0,
 
         [Parameter(ValueFromPipeline=$True)]
@@ -2650,6 +2653,10 @@ function Invoke-FindPersitence{
         [Parameter(ValueFromPipeline=$True)]
         [Switch]$RawOutput,
 
+        [ValidateRange(1,100)] 
+        [Int]
+        $Threads,
+
         [ValidateRange(1,10000)] 
         [Int]
         $PageSize = 200
@@ -2657,6 +2664,14 @@ function Invoke-FindPersitence{
     begin {
         # so this isn't repeated if users are passed on the pipeline
         $Computers = Get-NetComputer -Domain $Domain -DomainController $DomainController -OperatingSystem $OperatingSystem -ServicePack $ServicePack -SPN $SPN -PageSize $PageSize -ADSpath $ADSpath -Filter $Filter -ComputerName $ComputerName
+        $CheckRpcBlock = {
+            param($HostName, $Credential, $TargetUsers, $User, $Password)
+            $ret = Test-Wmi -HostName $_ -Credential $Credential -User $User -Password $Password
+            if ($ret){ 
+                $FinalComputerObjects += $_
+            }
+        }
+
     }
     Process {
 
@@ -2665,6 +2680,7 @@ function Invoke-FindPersitence{
                 $WeightedValue = Weighted-Values
                 # declare an array for 
                 $PersistenceObjects = @()
+                $FinalComputerObjects = @()
                 # start main
                 $Counter = 1
                 if($MaxHosts){
@@ -2672,7 +2688,14 @@ function Invoke-FindPersitence{
                     # or just feed x hosts?
                     $Computers = $Computers | Select-Object -first $MaxHosts
                 }
-                $Computers | Invoke-Ping -Timeout 5 | ForEach-Object {
+                $Computers | Invoke-Ping -Timeout 5 |
+                 ForEach-Object {
+                            $ret = Test-Wmi -ComputerName $_ -Credential $Credential -User $User -Password $Password
+                            if ($ret){ 
+                                $FinalComputerObjects += $_
+                                }
+                    }
+                    $FinalComputerObjects | ForEach-Object {
                     if($MaxHosts){
                         if($Counter -gt $MaxHosts){
                             write-host "[!] Reached Max Host Lookup!: "
@@ -2908,6 +2931,7 @@ function Invoke-FindPersitence{
         } # End of if computers
     }
     
+
 }
 
 #########################
@@ -2915,6 +2939,253 @@ function Invoke-FindPersitence{
 #     Helper Calls      #
 #                       #
 #########################
+function Test-Wmi {
+    <#
+    .SYNOPSIS
+    This function will query the target with Wmi to test creds and make sure we have the
+    ability to talk to RPC.
+
+    .PARAMETER Credential 
+    Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
+
+    .PARAMETER UserName
+    DOMAIN\UserName to pass to CLI.
+
+    .PARAMETER Password
+    String Password to pass to CLI.
+
+    .PARAMETER HostName
+    Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost.
+
+    .EXAMPLE
+    > Get-WmiBootTime
+    NONE
+
+    .LINK
+    NONE
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline=$True)]
+        $Credential,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$User,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$Password,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$ComputerName
+
+    )
+    Process 
+    {
+        if( -Not $ComputerName)
+        {
+            $ComputerName = $env:computername
+        }
+        # execute with cred object
+        if ($Credential)
+        {
+            # execute with cred object
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -credential $Credential 
+                if ($wmi){
+                    return $TRUE
+                }
+                else{
+                    return $FALSE
+                }
+            }
+            catch 
+            {
+                return $FALSE
+            }
+        }
+        elseif ($User -and $Password)
+        {
+            # execute with built credential object
+            $Password = ConvertTo-SecureString $Password -AsPlainText -Force
+	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -credential $Credential -EA Stop
+                if ($wmi){
+                    return $TRUE
+                }
+                else{
+                    return $FALSE
+                }
+            }
+            catch 
+            {
+                return $FALSE
+            }
+        }
+        else
+        {
+            try
+            {
+                # execute in current user context
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -EA Stop
+                if ($wmi){
+                    return $TRUE
+                }
+                else{
+                    return $FALSE
+                }
+            }
+            catch 
+            {
+                return $FALSE
+            }
+
+        }
+    }
+}
+
+function Invoke-ThreadedFunction {
+    # Helper used by any threaded host enumeration functions
+    [CmdletBinding()]
+    param(
+        [Parameter(Position=0,Mandatory=$True)]
+        [String[]]
+        $ComputerName,
+
+        [Parameter(Position=1,Mandatory=$True)]
+        [System.Management.Automation.ScriptBlock]
+        $ScriptBlock,
+
+        [Parameter(Position=2)]
+        [Hashtable]
+        $ScriptParameters,
+
+        [Int]
+        $Threads = 20,
+
+        [Switch]
+        $NoImports
+    )
+
+    begin {
+
+        if ($PSBoundParameters['Debug']) {
+            $DebugPreference = 'Continue'
+        }
+
+        Write-Verbose "[*] Total number of hosts: $($ComputerName.count)"
+
+        # Adapted from:
+        #   http://powershell.org/wp/forums/topic/invpke-parallel-need-help-to-clone-the-current-runspace/
+        $SessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $SessionState.ApartmentState = [System.Threading.Thread]::CurrentThread.GetApartmentState()
+
+        # import the current session state's variables and functions so the chained PowerView
+        #   functionality can be used by the threaded blocks
+        if(!$NoImports) {
+
+            # grab all the current variables for this runspace
+            $MyVars = Get-Variable -Scope 2
+
+            # these Variables are added by Runspace.Open() Method and produce Stop errors if you add them twice
+            $VorbiddenVars = @("?","args","ConsoleFileName","Error","ExecutionContext","false","HOME","Host","input","InputObject","MaximumAliasCount","MaximumDriveCount","MaximumErrorCount","MaximumFunctionCount","MaximumHistoryCount","MaximumVariableCount","MyInvocation","null","PID","PSBoundParameters","PSCommandPath","PSCulture","PSDefaultParameterValues","PSHOME","PSScriptRoot","PSUICulture","PSVersionTable","PWD","ShellId","SynchronizedHash","true")
+
+            # Add Variables from Parent Scope (current runspace) into the InitialSessionState
+            ForEach($Var in $MyVars) {
+                if($VorbiddenVars -NotContains $Var.Name) {
+                $SessionState.Variables.Add((New-Object -TypeName System.Management.Automation.Runspaces.SessionStateVariableEntry -ArgumentList $Var.name,$Var.Value,$Var.description,$Var.options,$Var.attributes))
+                }
+            }
+
+            # Add Functions from current runspace to the InitialSessionState
+            ForEach($Function in (Get-ChildItem Function:)) {
+                $SessionState.Commands.Add((New-Object -TypeName System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList $Function.Name, $Function.Definition))
+            }
+        }
+
+        # threading adapted from
+        # https://github.com/darkoperator/Posh-SecMod/blob/master/Discovery/Discovery.psm1#L407
+        #   Thanks Carlos!
+
+        # create a pool of maxThread runspaces
+        $Pool = [runspacefactory]::CreateRunspacePool(1, $Threads, $SessionState, $Host)
+        $Pool.Open()
+
+        $Jobs = @()
+        $PS = @()
+        $Wait = @()
+
+        $Counter = 0
+    }
+
+    process {
+
+        ForEach ($Computer in $ComputerName) {
+
+            # make sure we get a server name
+            if ($Computer -ne '') {
+                # Write-Verbose "[*] Enumerating server $Computer ($($Counter+1) of $($ComputerName.count))"
+
+                While ($($Pool.GetAvailableRunspaces()) -le 0) {
+                    Start-Sleep -MilliSeconds 500
+                }
+
+                # create a "powershell pipeline runner"
+                $PS += [powershell]::create()
+
+                $PS[$Counter].runspacepool = $Pool
+
+                # add the script block + arguments
+                $Null = $PS[$Counter].AddScript($ScriptBlock).AddParameter('ComputerName', $Computer)
+                if($ScriptParameters) {
+                    ForEach ($Param in $ScriptParameters.GetEnumerator()) {
+                        $Null = $PS[$Counter].AddParameter($Param.Name, $Param.Value)
+                    }
+                }
+
+                # start job
+                $Jobs += $PS[$Counter].BeginInvoke();
+
+                # store wait handles for WaitForAll call
+                $Wait += $Jobs[$Counter].AsyncWaitHandle
+            }
+            $Counter = $Counter + 1
+        }
+    }
+
+    end {
+
+        Write-Verbose "Waiting for scanning threads to finish..."
+
+        $WaitTimeout = Get-Date
+
+        # set a 60 second timeout for the scanning threads
+        while ($($Jobs | Where-Object {$_.IsCompleted -eq $False}).count -gt 0 -or $($($(Get-Date) - $WaitTimeout).totalSeconds) -gt 60) {
+                Start-Sleep -MilliSeconds 500
+            }
+
+        # end async call
+        for ($y = 0; $y -lt $Counter; $y++) {
+
+            try {
+                # complete async job
+                $PS[$y].EndInvoke($Jobs[$y])
+
+            } catch {
+                Write-Warning "error: $_"
+            }
+            finally {
+                $PS[$y].Dispose()
+            }
+        }
+        
+        $Pool.Dispose()
+        Write-Verbose "All threads completed!"
+    }
+}
+
 
 
 function Invoke-Ping {
@@ -3460,6 +3731,13 @@ function Invoke-Ping {
                 if( $result = @( Test-Connection -ComputerName $computer -Count 1 -erroraction Stop ) )
                 {
                     $Output = $result | Select -first 1 -Property Address, IPV4Address, IPV6Address, ResponseTime, @{ label = "STATUS"; expression = {"Responding"} }
+                    $Output.address
+                }
+                if( $result = @( Test- -ComputerName $computer ) )
+                {
+                    Write-Host "HERE2"
+                    $Output = $result | Select -first 1 -Property Address, IPV4Address, IPV6Address, ResponseTime, @{ label = "STATUS"; expression = {"Responding"} }
+                    return $TRUE
                     $Output.address
                 }
             }
