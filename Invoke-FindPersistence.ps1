@@ -2603,6 +2603,9 @@ function Invoke-FindPersitence{
         [Int]$Top = 3,
 
         [Parameter(ValueFromPipeline=$True)]
+        [Int]$TimeOut = 5,
+
+        [Parameter(ValueFromPipeline=$True)]
         [Int]$Delay = 0,
 
         [Parameter(ValueFromPipeline=$True)]
@@ -2650,6 +2653,9 @@ function Invoke-FindPersitence{
         [Parameter(ValueFromPipeline=$True)]
         [Switch]$RawOutput,
 
+        [ValidateRange(1,100)] 
+        [Int]$Threads=4,
+
         [ValidateRange(1,10000)] 
         [Int]
         $PageSize = 200
@@ -2657,14 +2663,15 @@ function Invoke-FindPersitence{
     begin {
         # so this isn't repeated if users are passed on the pipeline
         $Computers = Get-NetComputer -Domain $Domain -DomainController $DomainController -OperatingSystem $OperatingSystem -ServicePack $ServicePack -SPN $SPN -PageSize $PageSize -ADSpath $ADSpath -Filter $Filter -ComputerName $ComputerName
+
     }
     Process {
 
         if ($Computers) {
                 # create weighted value object before loop.
-                $WeightedValue = Weighted-Values
                 # declare an array for 
                 $PersistenceObjects = @()
+                $FinalComputerObjects = @()
                 # start main
                 $Counter = 1
                 if($MaxHosts){
@@ -2672,15 +2679,12 @@ function Invoke-FindPersitence{
                     # or just feed x hosts?
                     $Computers = $Computers | Select-Object -first $MaxHosts
                 }
-                $Computers | Invoke-Ping -Timeout 5 | ForEach-Object {
-                    if($MaxHosts){
-                        if($Counter -gt $MaxHosts){
-                            write-host "[!] Reached Max Host Lookup!: "
-                            break
-                        }
-                        $Counter += 1
-                    }
-                    if($Delay){
+                # Test if they are up first:
+                $Computers = Invoke-Ping -Timeout 5 -ComputerName $Computers
+                # Make sure we can reach RPC / talk to WMI
+                $FinalComputerObjects = Test-Wmi -ComputerName $Computers -Credential $Credential -User $User -Password $Password -Threads $Threads
+                # Build a Script Block 
+                    $sb = [scriptblock] { param($ComputerName) param($User) param($Password) param($Credential) param($Delay) param($Jitter) if($Delay){
                     # create sleep for jitter /delay time
                         $JitterValue = Get-Random -Minimum 0 -Maximum $Jitter
                         # for Postive / Negative Jitter count
@@ -2691,24 +2695,25 @@ function Invoke-FindPersitence{
                         Start-Sleep -Milliseconds $SleepTime
                     }
                     # setup meta calls for repeated Wmi calls to reduce call traffic
-                    $WmiOS = Get-WmiOS -User $User -Password $Password -Credential $Credential -HostName $_
+                    $WmiOS = Get-WmiOS -User $User -Password $Password -Credential $Credential -HostName $ComputerName
                     # Obtain required values for calculation
                     try{
-                        $LastBoot = Get-WmiBootTime -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
-                        $InstallDate = Get-WmiInstallDate -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
-                        $Arch = Get-WmiArch -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
-                        $Server = Get-WmiServer -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
-                        $SystemEncl = Get-WmiSystemEnclosure -User $User -Password $Password -Credential $Credential -HostName $_
-                        $RamSize = Get-WmiRamSize -User $User -Password $Password -Credential $Credential -HostName $_
-                        $DiskSize = Get-WMiDisk -User $User -Password $Password -Credential $Credential -HostName $_
-                        $ProcSpeed = Get-WmiProcessorSpeed -User $User -Password $Password -Credential $Credential -HostName $_
-                        $LProcCount = Get-WmiLProcessorCount -User $User -Password $Password -Credential $Credential -HostName $_
-                        $ProcCores = Get-WmiProcessorCores -User $User -Password $Password -Credential $Credential -HostName $_
-                        $ProcCount = Get-WmiProcessCount -User $User -Password $Password -Credential $Credential -HostName $_
+                        $LastBoot = Get-WmiBootTime -User $User -Password $Password -Credential $Credential -HostName $ComputerName -WmiOS $WmiOS
+                        $InstallDate = Get-WmiInstallDate -User $User -Password $Password -Credential $Credential -HostName $ComputerName -WmiOS $WmiOS
+                        $Arch = Get-WmiArch -User $User -Password $Password -Credential $Credential -HostName $ComputerName -WmiOS $WmiOS
+                        $Server = Get-WmiServer -User $User -Password $Password -Credential $Credential -HostName $ComputerName -WmiOS $WmiOS
+                        $SystemEncl = Get-WmiSystemEnclosure -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $RamSize = Get-WmiRamSize -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $DiskSize = Get-WMiDisk -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $ProcSpeed = Get-WmiProcessorSpeed -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $LProcCount = Get-WmiLProcessorCount -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $ProcCores = Get-WmiProcessorCores -User $User -Password $Password -Credential $Credential -HostName $ComputerName
+                        $ProcCount = Get-WmiProcessCount -User $User -Password $Password -Credential $Credential -HostName $ComputerName
                         # Obtain required boolean values 
-                        $PortOS = Get-WmiPortableOS -User $User -Password $Password -Credential $Credential -HostName $_ -WmiOS $WmiOS
-                        $VMware = Get-WmiVMChecks -User $User -Password $Password -Credential $Credential -HostName $_
+                        $PortOS = Get-WmiPortableOS -User $User -Password $Password -Credential $Credential -HostName $ComputerName -WmiOS $WmiOS
+                        $VMware = Get-WmiVMChecks -User $User -Password $Password -Credential $Credential -HostName $ComputerName
                     }
+
                     catch{
                         Write-Verbose "[!] Failed to get WMI values"
                     }
@@ -2731,6 +2736,7 @@ function Invoke-FindPersitence{
                     }
                     try{
                         # calculate weighted averages
+                        $WeightedValue = Weighted-Values
                         $WLastBoot = Calc-WeightedAverage -Percent $VLastBoot -Weight $WeightedValue.LastBoot
                         $WInstallDate = Calc-WeightedAverage -Percent $VInstallDate -Weight $WeightedValue.InstallDate
                         $WArch = Calc-WeightedAverage -Percent $VArch -Weight $WeightedValue.OSArch
@@ -2749,7 +2755,7 @@ function Invoke-FindPersitence{
                         Write-Verbose "[!] Failed to build weighted Averages"
                         }
                     try{
-                        $IpAddress = [System.Net.Dns]::GetHostAddresses("$_").IPAddressToString
+                        $IpAddress = [System.Net.Dns]::GetHostAddresses("$ComputerName").IPAddressToString
                     }
                     catch{
                         $IpAddress = "Uknown"
@@ -2757,7 +2763,7 @@ function Invoke-FindPersitence{
                     try{
                         # build our object of values
                         $ComputerObject = New-Object PSObject
-                        $ComputerObject | Add-Member NoteProperty 'NetBIOSName' $_
+                        $ComputerObject | Add-Member NoteProperty 'NetBIOSName' $ComputerName
                         $ComputerObject | Add-Member NoteProperty 'IpAddress' $IpAddress
                         $ComputerObject | Add-Member Noteproperty 'LastBoot' $LastBoot
                         $ComputerObject | Add-Member Noteproperty 'InstallDate' $InstallDate
@@ -2802,17 +2808,25 @@ function Invoke-FindPersitence{
 
 
                         # print / return value
-                        if ($ComputerObject){
-                            $PersistenceObjects += $ComputerObject
-                        }
-                        if ($RawOutput){
-                            $ComputerObject
-                        }
+                        $ComputerObject
                     }
                     catch{
                         "[!] Failed to build computer object!"
                     }
-            } # End of for each
+            } # End of script block
+            # call threaded function
+            $ScriptParams = @{
+                'Computers' = $ComputerName
+                'User' = $User
+                'Password' = $Password
+                'Credential' = $Password
+                'Delay' = $Delay
+                'Jitter' = $Jitter
+            }
+            $PersistenceObjects = Invoke-ThreadedFunction -ComputerName $FinalComputerObjects -ScriptBlock $sb -Threads $Threads -ScriptParameters $ScriptParams
+            if ($RawOutput){
+               $PersistenceObjects
+            }
             if (!$ReturnObjects){
                 # declare arrays for each section
                 $VMwareObjects = @()
@@ -2908,6 +2922,7 @@ function Invoke-FindPersitence{
         } # End of if computers
     }
     
+
 }
 
 #########################
@@ -2915,6 +2930,257 @@ function Invoke-FindPersitence{
 #     Helper Calls      #
 #                       #
 #########################
+
+function Test-Wmi {
+    <#
+    .SYNOPSIS
+    This function will query the target with Wmi to test creds and make sure we have the
+    ability to talk to RPC.
+
+    .PARAMETER Credential 
+    Pass a credential object on the CLI. Rather than recreating a new credential object it can be re-used.
+
+    .PARAMETER UserName
+    DOMAIN\UserName to pass to CLI.
+
+    .PARAMETER Password
+    String Password to pass to CLI.
+
+    .PARAMETER ComputerName
+    Host to target for the data. Can be a hostname, IP address, or FQDN. Default is set to localhost or list of computers.
+
+    .EXAMPLE
+    > Get-WmiBootTime
+    NONE
+
+    .LINK
+    NONE
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline=$True)]
+        $Credential,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$User,
+
+        [Parameter(ValueFromPipeline=$True)]
+        [string]$Password,
+
+        [Parameter(ValueFromPipeline=$True)]
+        $ComputerName,
+
+        [ValidateRange(1,100)] 
+        [Int]
+        $Threads=4
+
+    )
+    Process 
+    {
+    $sb = [scriptblock] { param($ComputerName) if( -Not $ComputerName)
+        {
+            $ComputerName = $env:computername
+        }
+        # execute with cred object
+        if ($Credential)
+        {
+            # execute with cred object
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -credential $Credential 
+                if ($wmi){
+                    return $ComputerName
+                }
+                else{
+                }
+            }
+            catch 
+            {
+            }
+        }
+        elseif ($User -and $Password)
+        {
+            # execute with built credential object
+            $Password = ConvertTo-SecureString $Password -AsPlainText -Force
+	        $Credential = New-Object -typename System.Management.Automation.PSCredential -argumentlist $UserName, $Password
+            try
+            {
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -credential $Credential -EA Stop
+                if ($wmi){
+                    return $ComputerName
+                }
+                else{
+                }
+            }
+            catch 
+            {
+            }
+        }
+        else
+        {
+            try
+            {
+                # execute in current user context
+                $Wmi = Get-WmiObject -Namespace "root\cimv2" -Class Win32_COMSetting -computername $ComputerName -EA Stop
+                if ($wmi){
+                    return $ComputerName
+                }
+                else{ 
+                }
+            }
+            catch 
+            {
+            }
+
+        }
+    } # end of script block
+    $ScriptParams = @{
+                'Computers' = $ComputerName
+    }
+    Invoke-ThreadedFunction -ComputerName $ComputerName -ScriptBlock $sb -Threads $Threads
+  }
+}
+
+function Invoke-ThreadedFunction {
+    # Helper used by any threaded host enumeration functions
+    [CmdletBinding()]
+    param(
+        [Parameter(Position=0,Mandatory=$True)]
+        [String[]]
+        $ComputerName,
+
+        [Parameter(Position=1,Mandatory=$True)]
+        [System.Management.Automation.ScriptBlock]
+        $ScriptBlock,
+
+        [Parameter(Position=2)]
+        [Hashtable]
+        $ScriptParameters,
+
+        [Int]
+        $Threads = 20,
+
+        [Switch]
+        $NoImports
+    )
+
+    begin {
+
+        if ($PSBoundParameters['Debug']) {
+            $DebugPreference = 'Continue'
+        }
+
+        Write-Verbose "[*] Total number of hosts: $($ComputerName.count)"
+
+        # Adapted from:
+        #   http://powershell.org/wp/forums/topic/invpke-parallel-need-help-to-clone-the-current-runspace/
+        $SessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $SessionState.ApartmentState = [System.Threading.Thread]::CurrentThread.GetApartmentState()
+
+        # import the current session state's variables and functions so the chained PowerView
+        #   functionality can be used by the threaded blocks
+        if(!$NoImports) {
+
+            # grab all the current variables for this runspace
+            $MyVars = Get-Variable -Scope 2
+
+            # these Variables are added by Runspace.Open() Method and produce Stop errors if you add them twice
+            $VorbiddenVars = @("?","args","ConsoleFileName","Error","ExecutionContext","false","HOME","Host","input","InputObject","MaximumAliasCount","MaximumDriveCount","MaximumErrorCount","MaximumFunctionCount","MaximumHistoryCount","MaximumVariableCount","MyInvocation","null","PID","PSBoundParameters","PSCommandPath","PSCulture","PSDefaultParameterValues","PSHOME","PSScriptRoot","PSUICulture","PSVersionTable","PWD","ShellId","SynchronizedHash","true")
+
+            # Add Variables from Parent Scope (current runspace) into the InitialSessionState
+            ForEach($Var in $MyVars) {
+                if($VorbiddenVars -NotContains $Var.Name) {
+                $SessionState.Variables.Add((New-Object -TypeName System.Management.Automation.Runspaces.SessionStateVariableEntry -ArgumentList $Var.name,$Var.Value,$Var.description,$Var.options,$Var.attributes))
+                }
+            }
+
+            # Add Functions from current runspace to the InitialSessionState
+            ForEach($Function in (Get-ChildItem Function:)) {
+                $SessionState.Commands.Add((New-Object -TypeName System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList $Function.Name, $Function.Definition))
+            }
+        }
+
+        # threading adapted from
+        # https://github.com/darkoperator/Posh-SecMod/blob/master/Discovery/Discovery.psm1#L407
+        #   Thanks Carlos!
+
+        # create a pool of maxThread runspaces
+        $Pool = [runspacefactory]::CreateRunspacePool(1, $Threads, $SessionState, $Host)
+        $Pool.Open()
+
+        $Jobs = @()
+        $PS = @()
+        $Wait = @()
+
+        $Counter = 0
+    }
+
+    process {
+
+        ForEach ($Computer in $ComputerName) {
+
+            # make sure we get a server name
+            if ($Computer -ne '') {
+                # Write-Verbose "[*] Enumerating server $Computer ($($Counter+1) of $($ComputerName.count))"
+
+                While ($($Pool.GetAvailableRunspaces()) -le 0) {
+                    Start-Sleep -MilliSeconds 500
+                }
+
+                # create a "powershell pipeline runner"
+                $PS += [powershell]::create()
+
+                $PS[$Counter].runspacepool = $Pool
+
+                # add the script block + arguments
+                $Null = $PS[$Counter].AddScript($ScriptBlock).AddParameter('ComputerName', $Computer)
+                if($ScriptParameters) {
+                    ForEach ($Param in $ScriptParameters.GetEnumerator()) {
+                        $Null = $PS[$Counter].AddParameter($Param.Name, $Param.Value)
+                    }
+                }
+
+                # start job
+                $Jobs += $PS[$Counter].BeginInvoke();
+
+                # store wait handles for WaitForAll call
+                $Wait += $Jobs[$Counter].AsyncWaitHandle
+            }
+            $Counter = $Counter + 1
+        }
+    }
+
+    end {
+
+        Write-Verbose "Waiting for scanning threads to finish..."
+
+        $WaitTimeout = Get-Date
+
+        # set a 60 second timeout for the scanning threads
+        while ($($Jobs | Where-Object {$_.IsCompleted -eq $False}).count -gt 0 -or $($($(Get-Date) - $WaitTimeout).totalSeconds) -gt 60) {
+                Start-Sleep -MilliSeconds 500
+            }
+
+        # end async call
+        for ($y = 0; $y -lt $Counter; $y++) {
+
+            try {
+                # complete async job
+                $PS[$y].EndInvoke($Jobs[$y])
+
+            } catch {
+                Write-Warning "error: $_"
+            }
+            finally {
+                $PS[$y].Dispose()
+            }
+        }
+        
+        $Pool.Dispose()
+        Write-Verbose "All threads completed!"
+    }
+}
+
 
 
 function Invoke-Ping {
