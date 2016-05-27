@@ -611,7 +611,7 @@ function Get-WmiServer{
 function Get-WmiRamSize{
     <#
     .SYNOPSIS
-    Total capacity of the physical memory—in bytes.
+    Total capacity of the physical memory in bytes.
 
     .DESCRIPTION
     This value comes from the Memory Device structure in the SMBIOS version information. 
