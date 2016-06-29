@@ -2603,6 +2603,9 @@ function Invoke-FindPersitence{
         [Int]$Top = 3,
 
         [Parameter(ValueFromPipeline=$True)]
+        $HostList,
+
+        [Parameter(ValueFromPipeline=$True)]
         [Int]$TimeOut = 5,
 
         [Parameter(ValueFromPipeline=$True)]
@@ -2661,9 +2664,13 @@ function Invoke-FindPersitence{
         $PageSize = 200
     )
     begin {
-        # so this isn't repeated if users are passed on the pipeline
-        $Computers = Get-NetComputer -Domain $Domain -DomainController $DomainController -OperatingSystem $OperatingSystem -ServicePack $ServicePack -SPN $SPN -PageSize $PageSize -ADSpath $ADSpath -Filter $Filter -ComputerName $ComputerName
-
+        if ($HostList){
+            $Computers = $HostList
+        }
+        else {
+            # so this isn't repeated if users are passed on the pipeline
+            $Computers = Get-NetComputer -Domain $Domain -DomainController $DomainController -OperatingSystem $OperatingSystem -ServicePack $ServicePack -SPN $SPN -PageSize $PageSize -ADSpath $ADSpath -Filter $Filter -ComputerName $ComputerName
+        }
     }
     Process {
 
