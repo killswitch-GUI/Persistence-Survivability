@@ -2664,8 +2664,10 @@ function Invoke-FindPersitence{
         $PageSize = 200
     )
     begin {
+        Write-Verbose "[*] Strating Invoke-FindPersitence" 
         if ($HostList){
             $Computers = $HostList
+            Write-Verbose "[*] IP MAIN: hosts passed:"
         }
         else {
             # so this isn't repeated if users are passed on the pipeline
@@ -2687,10 +2689,15 @@ function Invoke-FindPersitence{
                     $Computers = $Computers | Select-Object -first $MaxHosts
                 }
                 # Test if they are up first:
+                Write-Verbose "[*] IP MAIN: Calling Invoke-Ping"
                 $Computers = Invoke-Ping -Timeout 5 -ComputerName $Computers
+                Write-Verbose "[*] IP MAIN: Invoke-Ping Complete"
                 # Make sure we can reach RPC / talk to WMI
+                Write-Verbose "[*] IP MAIN: Calling Test-Wmi"
                 $FinalComputerObjects = Test-Wmi -ComputerName $Computers -Credential $Credential -User $User -Password $Password -Threads $Threads
+                Write-Verbose "[*] IP MAIN: Test-Wmi Complete"
                 # Build a Script Block 
+                    Write-Verbose "[*] IP MAIN: Building script blokc for wmi collection"
                     $sb = [scriptblock] { param($ComputerName) param($User) param($Password) param($Credential) param($Delay) param($Jitter) if($Delay){
                     # create sleep for jitter /delay time
                         $JitterValue = Get-Random -Minimum 0 -Maximum $Jitter
@@ -2821,6 +2828,7 @@ function Invoke-FindPersitence{
                         "[!] Failed to build computer object!"
                     }
             } # End of script block
+            Write-Verbose "[*] IP MAIN: Script block creation complete"
             # call threaded function
             $ScriptParams = @{
                 'Computers' = $ComputerName
@@ -2830,6 +2838,7 @@ function Invoke-FindPersitence{
                 'Delay' = $Delay
                 'Jitter' = $Jitter
             }
+            Write-Verbose "[*] IP MAIN: Strating threads on script block"
             $PersistenceObjects = Invoke-ThreadedFunction -ComputerName $FinalComputerObjects -ScriptBlock $sb -Threads $Threads -ScriptParameters $ScriptParams
             if ($RawOutput){
                $PersistenceObjects
