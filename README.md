@@ -1,7 +1,14 @@
 # Persistence Survivability Rating
 
-## Parameter Syntax: 
+This project uses the Duqu style persistence as a TTP and was presented at Bsides Augusta – RAT. This project is PowerShell based and can be used with credentials and without. For more info please read the .ps1 file.
 
+# Basic use:
+```
+Invoke-FindPersitence 
+Invoke-FindPersitence -MaxHosts 100 -Top 5
+Invoke-FindPersitence -Domain tester.org -OperatingSystem *7*
+Invoke-FindPersitence -Domain tester.org -OperatingSystem *2008* -Top 3 -Jit 2 -Delay 5 -ADSPath "LDAP://OU=iis=servers=,DC=testlab,DC=Local" -Threads 10
+```
 ## Demo 
 https://youtu.be/VDwxhkIK4TY
 
