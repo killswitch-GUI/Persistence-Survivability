@@ -9,8 +9,8 @@ Invoke-FindPersitence -Domain tester.org -OperatingSystem *7*
 Invoke-FindPersitence -Domain tester.org -OperatingSystem *2008* -Top 3 -Jit 2 -Delay 5 -ADSPath "LDAP://OU=iis=servers=,DC=testlab,DC=Local" -Threads 10
 ```
 ## Demo / Slides:
-http://www.slideshare.net/AlexanderRymdekoHarv/rat-repurposing-adversarial-tradecraft
-https://youtu.be/VDwxhkIK4TY
+- http://www.slideshare.net/AlexanderRymdekoHarv/rat-repurposing-adversarial-tradecraft
+- https://youtu.be/VDwxhkIK4TY
 
 ## How does it work:
 ![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/blob/master/Admin/2016-09-10%2022_13_47-RAT%20-%20Google%20Slides.png)
