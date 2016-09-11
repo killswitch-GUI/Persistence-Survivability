@@ -2,6 +2,13 @@
 
 ## Parameter Syntax: 
 
+## Demo 
+https://youtu.be/VDwxhkIK4TY
+
+## How does it work:
+![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/tree/master/Admin/2016-09-10 22_13_47-RAT - Google Slides.png)
+![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/tree/master/Admin/2016-09-10 22_15_27-RAT - Google Slides.png)
+![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/tree/master/Admin/2016-09-10 22_16_39-RAT - Google Slides.png)
 
 ### Build Out Path
 Current value based supported remote queries:
