@@ -1,5 +1,4 @@
 # Persistence Survivability Rating
-
 This project uses the Duqu style persistence as a TTP and was presented at Bsides Augusta – RAT. This project is PowerShell based and can be used with credentials and without. For more info please read the .ps1 file.
 
 # Basic use:
