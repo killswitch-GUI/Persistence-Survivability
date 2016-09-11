@@ -7,8 +7,8 @@ https://youtu.be/VDwxhkIK4TY
 
 ## How does it work:
 ![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/blob/master/Admin/2016-09-10%2022_13_47-RAT%20-%20Google%20Slides.png)
-![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/tree/master/Admin/2016-09-10 22_15_27-RAT - Google Slides.png)
-![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/tree/master/Admin/2016-09-10 22_16_39-RAT - Google Slides.png)
+![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/blob/master/Admin/2016-09-10%2022_15_27-RAT%20-%20Google%20Slides.png)
+![alt tag](https://github.com/killswitch-GUI/Persistence-Survivability/blob/master/Admin/2016-09-10%2022_16_39-RAT%20-%20Google%20Slides.png)
 
 ### Build Out Path
 Current value based supported remote queries:
